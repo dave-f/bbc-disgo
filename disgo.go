@@ -2,7 +2,7 @@ package main
 
 import (
     "fmt"
-//    "io"
+    "io/ioutil"
     "os"
 )
 
@@ -21,6 +21,9 @@ func main() {
         fmt.Println(err)
         return
     }
+
+	data, err := ioutil.ReadAll(f)
+	fmt.Println("Number of bytes read:", len(data))
 
     defer f.Close()
 }
