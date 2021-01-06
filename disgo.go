@@ -163,7 +163,7 @@ var opstring = [...] string {
 "TXS",
 "TYA",
 "WAI",
-"---" }
+"???" }
 
 var opname = [...] int {
 	I_BRK, I_ORA, I_XXX, I_XXX, I_TSB, I_ORA, I_ASL, I_XXX, I_PHP, I_ORA, I_ASL, I_XXX, I_TSB, I_ORA, I_ASL, I_XXX,  // 00
@@ -181,7 +181,7 @@ var opname = [...] int {
 		I_CPY, I_CMP, I_XXX, I_XXX, I_CPY, I_CMP, I_DEC, I_XXX, I_INY, I_CMP, I_DEX, I_WAI, I_CPY, I_CMP, I_DEC, I_XXX,  // C0
 		I_BNE, I_CMP, I_CMP, I_XXX, I_XXX, I_CMP, I_DEC, I_XXX, I_CLD, I_CMP, I_PHX, I_STP, I_XXX, I_CMP, I_DEC, I_XXX,  // D0
 		I_CPX, I_SBC, I_XXX, I_XXX, I_CPX, I_SBC, I_INC, I_XXX, I_INX, I_SBC, I_NOP, I_XXX, I_CPX, I_SBC, I_INC, I_XXX,  // E0
-		I_BEQ, I_SBC, I_SBC, I_XXX, I_XXX, I_SBC, I_INC, I_XXX, I_SED, I_SBC, I_PLX, I_XXX, I_XXX, I_SBC, I_INC, I_XXX } // F0
+		I_BEQ, I_SBC, I_XXX, I_XXX, I_XXX, I_SBC, I_INC, I_XXX, I_SED, I_SBC, I_PLX, I_XXX, I_XXX, I_SBC, I_INC, I_XXX } // F0
 
 var opmode = [...] int {
 	IMP, INDX,  IMP, IMP,  ZP,   ZP,     ZP,    IMP,   IMP,  IMM,   IMPA,  IMP,  ABS,    ABS,   ABS,  IMP,  // 00
@@ -199,7 +199,7 @@ var opmode = [...] int {
 		IMM, INDX,  IMP, IMP,  ZP,   ZP,     ZP,    IMP,   IMP,  IMM,   IMP,   IMP,  ABS,    ABS,   ABS,  IMP,  // C0
 		BRA, INDY,  IND, IMP,  ZP,   ZPX,   ZPX,    IMP,   IMP,  ABSY,  IMP,   IMP,  ABS,    ABSX,  ABSX, IMP,  // D0
 		IMM, INDX,  IMP, IMP,  ZP,   ZP,     ZP,    IMP,   IMP,  IMM,   IMP,   IMP,  ABS,    ABS,   ABS,  IMP,  // E0
-		BRA, INDY,  IND, IMP,  ZP,   ZPX,   ZPX,    IMP,   IMP,  ABSY,  IMP,   IMP,  ABS,    ABSX,  ABSX, IMP } // F0 
+		BRA, INDY,  IMP, IMP,  ZP,   ZPX,   ZPX,    IMP,   IMP,  ABSY,  IMP,   IMP,  ABS,    ABSX,  ABSX, IMP } // F0 
 
 func main() {
 
@@ -254,7 +254,7 @@ func main() {
 
 		switch (mode) {
 		case IMP:
-			outputStr = fmt.Sprintf("-%s-",opstring[name])
+			outputStr = fmt.Sprintf("%s",opstring[name])
 		case IMPA:
 			//log0("A       ");
 			break;
