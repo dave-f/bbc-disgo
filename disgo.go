@@ -223,17 +223,15 @@ func main() {
 		return
 	}
 
-	// fmt.Println("Number of bytes read: ", len(data), " with enum as ", BRA, " total opcodes ", len(opname))
-	var totalBytes = len(data)
+	var totalBytes = 28 // len(data)
 	var currentOffset = 0
-	var currentAddress uint16 = 0x2000
+	var currentAddress = 0x2000
 
-	for currentOffset < 4 {
-
-		fmt.Printf("%x ", currentAddress)
+	for currentOffset < totalBytes {
 
 		var thisByte byte = data[currentOffset]
 		var mode = opmode[thisByte]
+		/*
 		var bytesRequired = 0
 
 		switch {
@@ -242,76 +240,59 @@ func main() {
 			case (mode>MARK2):
 			bytesRequired=1
 		}
+		*/
 
 		var name = opname[thisByte]
-		var outputStr = ""
+		var outputStr = fmt.Sprintf("%02x %s", currentAddress+currentOffset, opstring[name]) // TODO chck we still have bytesRequired left, if not print ???
 
 		currentOffset++
 
-		if (currentOffset+bytesRequired) > totalBytes {
-			panic("ta ra ya shitter")
-		}
-
 		switch (mode) {
 		case IMP:
-			outputStr = fmt.Sprintf("%s",opstring[name])
 		case IMPA:
-			//log0("A       ");
-			break;
 		case BRA:
-			//temp = currentOffset + 2;// + (signed char)p1;
-			//log0("%04X    ", temp);
+			// temp = currentOffset + 2;// + (signed char)p1;
+			outputStr += fmt.Sprintf("%04x",0);
 			currentOffset++;
-			break;
 		case IMM:
-			//log0("#%02X     ", p1);
+			outputStr += fmt.Sprintf(" #&%02x", data[currentOffset])
 			currentOffset++;
 			break;
 		case ZP:
-			//log0("%02X      ", p1);
+			outputStr += fmt.Sprintf(" %02x", data[currentOffset])
 			currentOffset++;
 			break;
 		case ZPX:
-			//log0("%02X,X    ", p1);
+			outputStr += fmt.Sprintf(" %02x,X", data[currentOffset])
 			currentOffset++;
-			break;
 		case ZPY:
 			//log0("%02X,Y    ", p1);
+			outputStr += fmt.Sprintf(" %02x,Y", data[currentOffset])
 			currentOffset++;
-			break;
 		case IND:
-			//log0("(%02X)    ", p1);
+			outputStr += fmt.Sprintf(" (%02x)", data[currentOffset])
 			currentOffset++;
-			outputStr = fmt.Sprintf("%s",opstring[name])
-			break;
 		case INDX:
-			//log0("(%02X,X)  ", p1);
+			outputStr += fmt.Sprintf(" (&%02x,X)", data[currentOffset])
 			currentOffset++;
-			outputStr = fmt.Sprintf("%s (&%02x,X)",opstring[name], 20)
 		case INDY:
-			//log0("(%02X),Y  ", p1);
+			outputStr += fmt.Sprintf(" (&%02x),Y", data[currentOffset])
 			currentOffset++;
-			break;
 		case ABS:
-			//log0("%02X%02X    ", p2, p1);
+			outputStr += fmt.Sprintf(" &%02x%02x", data[currentOffset+1], data[currentOffset+0])
 			currentOffset += 2;
-			break;
 		case ABSX:
-			//log0("%02X%02X,X  ", p2, p1);
+			outputStr += fmt.Sprintf(" &%02x%02x", 0, 0);
 			currentOffset += 2;
-			break;
 		case ABSY:
-			//log0("%02X%02X,Y  ", p2, p1);
+			outputStr += fmt.Sprintf(" &%02x%02x,Y", data[currentOffset+1], data[currentOffset+0])
 			currentOffset += 2;
-			break;
 		case IND16:
-			//log0("(%02X%02X)  ", p2, p1);
+			outputStr += fmt.Sprintf(" (&%02x%02x)", data[currentOffset+1], data[currentOffset+0])
 			currentOffset += 2;
-			break;
 		case IND1X:
-			//log0("(%02X%02X,X)", p2, p1);
+			outputStr += fmt.Sprintf(" (&%02x%02x,X)", data[currentOffset+1], data[currentOffset+0])
 			currentOffset += 2;
-			break;
 		}
 
 		fmt.Println(outputStr)
