@@ -224,23 +224,37 @@ func main() {
 	}
 
 	// fmt.Println("Number of bytes read: ", len(data), " with enum as ", BRA, " total opcodes ", len(opname))
-
+	var totalBytes = len(data)
 	var currentOffset = 0
 	var currentAddress uint16 = 0x2000
-	var totalBytes = 1 //len(data)
 
-	for currentOffset < totalBytes {
+	for currentOffset < 4 {
 
 		fmt.Printf("%x ", currentAddress)
 
-		var thisByte = data[currentOffset]
+		var thisByte byte = data[currentOffset]
 		var mode = opmode[thisByte]
+		var bytesRequired = 0
+
+		switch {
+			case (mode>MARK3):
+			bytesRequired=2
+			case (mode>MARK2):
+			bytesRequired=1
+		}
+
 		var name = opname[thisByte]
+		var outputStr = ""
+
 		currentOffset++
+
+		if (currentOffset+bytesRequired) > totalBytes {
+			panic("ta ra ya shitter")
+		}
 
 		switch (mode) {
 		case IMP:
-			fmt.Println(opstring[name])
+			outputStr = fmt.Sprintf("-%s-",opstring[name])
 		case IMPA:
 			//log0("A       ");
 			break;
@@ -268,11 +282,12 @@ func main() {
 		case IND:
 			//log0("(%02X)    ", p1);
 			currentOffset++;
+			outputStr = fmt.Sprintf("%s",opstring[name])
 			break;
 		case INDX:
 			//log0("(%02X,X)  ", p1);
 			currentOffset++;
-			break;
+			outputStr = fmt.Sprintf("%s (&%02x,X)",opstring[name], 20)
 		case INDY:
 			//log0("(%02X),Y  ", p1);
 			currentOffset++;
@@ -298,5 +313,9 @@ func main() {
 			currentOffset += 2;
 			break;
 		}
+
+		fmt.Println(outputStr)
 	}
+
+	fmt.Println()
 }
