@@ -8,8 +8,9 @@ Invoke the program by passing a filename and a base address:
 
 go run disgo.go <filename> <address>
 
-The file is simply disassembled to standard output, taking <address> as its base address.
+The file is disassembled to standard output, taking <address> as its base address.
 
 # Credits
 I pulled out the 6502 defintions from https://github.com/hoglet67/AtomBusMon
+
 6502 reference from https://www.masswerk.at/6502/6502_instruction_set.html
