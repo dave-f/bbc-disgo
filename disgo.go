@@ -4,6 +4,7 @@ import (
     "fmt"
     "io/ioutil"
     "os"
+	"strconv"
 )
 
 const (
@@ -203,7 +204,7 @@ var opmode = [...] int {
 
 func main() {
 
-    if len(os.Args) != 2 {
+    if len(os.Args) != 3 {
 		fmt.Println("Usage: disgo <filename> <address>")
         return
     }
@@ -225,7 +226,14 @@ func main() {
 
 	var totalBytes = len(data)
 	var currentOffset = 0
-	const baseAddress = 0x2000
+	parsedBaseAddress, err := strconv.ParseInt(os.Args[2],0,16)
+
+	if err != nil {
+		fmt.Println(err)
+		return
+	}
+
+	baseAddress := int(parsedBaseAddress)
 
 	for currentOffset < totalBytes {
 
