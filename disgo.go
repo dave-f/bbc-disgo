@@ -285,13 +285,13 @@ func main() {
 			currentOffset++
 			break
 		case ZPX:
-			outputStr += fmt.Sprintf(" %02X,X", data[currentOffset])
+			outputStr += fmt.Sprintf(" &%02X,X", data[currentOffset])
 			currentOffset++
 		case ZPY:
-			outputStr += fmt.Sprintf(" %02X,Y", data[currentOffset])
+			outputStr += fmt.Sprintf(" &%02X,Y", data[currentOffset])
 			currentOffset++
 		case IND:
-			outputStr += fmt.Sprintf(" (%02X)", data[currentOffset])
+			outputStr += fmt.Sprintf(" (&%02X)", data[currentOffset])
 			currentOffset++
 		case INDX:
 			outputStr += fmt.Sprintf(" (&%02X,X)", data[currentOffset])
