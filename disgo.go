@@ -269,7 +269,8 @@ func main() {
 
 		switch mode {
 		//case IMP:
-		//case IMPA:
+		case IMPA:
+			outputStr += " A"
 		case BRA:
 			branchRange := int(int8(data[currentOffset] + 1))
 			branchTarget := (currentOffset + branchRange) + baseAddress
