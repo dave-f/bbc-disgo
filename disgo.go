@@ -1,10 +1,10 @@
 package main
 
 import (
+	"flag"
 	"fmt"
 	"io/ioutil"
 	"os"
-	"strconv"
 )
 
 const (
@@ -202,14 +202,69 @@ var opmode = [...]int{
 	IMM, INDX, IMP, IMP, ZP, ZP, ZP, IMP, IMP, IMM, IMP, IMP, ABS, ABS, ABS, IMP, // E0
 	BRA, INDY, IND, IMP, ZP, ZPX, ZPX, IMP, IMP, ABSY, IMP, IMP, ABS, ABSX, ABSX, IMP} // F0
 
+const (
+	DATA = iota
+	CODE
+)
+
+type CodePoint struct {
+	address  int
+	bytetype int
+}
+
+// Parse the control file - for now a lot of this is hardcoded
+func parseControlFile(filename string, controlfile string, filesize int) ([][]CodePoint, error) {
+	base := 0x2000
+
+	d := make([]CodePoint, filesize)
+	r := make([][]CodePoint, 0, 5)
+
+	// Assume all bytes are data to begin with
+	for i := 0; i < filesize; i++ {
+		d[i].address = base + i
+		d[i].bytetype = DATA
+	}
+
+	// In pantry antics, executable code starts at 0x4800, so 0x4800-0x2000 = 0x2800
+	// Normally we would read this out the control file.
+	for i := 0x2800; i < filesize; i++ {
+		d[i].bytetype = CODE
+	}
+
+	// Now slice it up
+	lastByteType := -1
+	idx := -1
+
+	for _, v := range d {
+		if v.bytetype != lastByteType {
+			// create new slice
+			fmt.Printf("New slice at 0x%x\n", v.address)
+			idx++
+			r = append(r, make([]CodePoint, 0, filesize))
+		}
+		// add to current slice
+		r[idx] = append(r[idx], v)
+		lastByteType = v.bytetype
+	}
+
+	// TODO error on any overlap
+	return r, nil
+}
+
+func applyComments() {
+	// tie a comment to an address, since line number can change as we go
+}
+
 func main() {
 
-	if len(os.Args) != 3 {
-		fmt.Println("Usage: disgo <filename> <address>")
+	flag.Parse()
+
+	if flag.NArg() != 1 {
+		fmt.Println("Usage: disgo <filename>")
 		return
 	}
 
-	f, err := os.Open(os.Args[1])
+	f, err := os.Open(flag.Arg(0))
 
 	if err != nil {
 		fmt.Println(err)
@@ -225,15 +280,33 @@ func main() {
 	}
 
 	var totalBytes = len(data)
-	var currentOffset = 0
-	parsedBaseAddress, err := strconv.ParseInt(os.Args[2], 0, 16)
+	p, err := parseControlFile(flag.Arg(0), "controlfile.txt", totalBytes) // controlfile will be arg(0) with filename etc in it
 
 	if err != nil {
 		fmt.Println(err)
 		return
 	}
 
-	baseAddress := int(parsedBaseAddress)
+	if len(p) == 0 {
+		fmt.Println("Nothing found")
+		return
+	}
+
+	baseAddress := p[0][0].address
+	fmt.Printf("Base address is 0x%x, with %d bytes in file\n", baseAddress, totalBytes)
+
+	for i, v := range p {
+		fmt.Println(i, len(v))
+		//dis(v)
+	}
+
+	return
+
+	// TODO move this to dis function
+	//      if type is code, disassemble normally
+	//      if type is data, just print out the byte
+
+	var currentOffset = 0
 
 	for currentOffset < totalBytes {
 
@@ -264,7 +337,7 @@ func main() {
 			}
 		}
 
-		outputStr += fmt.Sprintf("%s", opstring[name])
+		outputStr += opstring[name]
 		currentOffset++
 
 		switch mode {
