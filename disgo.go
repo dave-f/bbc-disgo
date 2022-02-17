@@ -2,6 +2,7 @@ package main
 
 import (
 	"bufio"
+	"errors"
 	"flag"
 	"fmt"
 	"io/ioutil"
@@ -211,9 +212,9 @@ const (
 )
 
 type CodePoint struct {
-	offset   int // actual offset in file?
+	offset   int // actual offset in file
 	address  int // address
-	bytetype int // code or data?
+	bytetype int // code (1) or data (0)
 }
 
 // Parse the control file.  Control files currently have 3 commands:
@@ -251,12 +252,23 @@ func parseControlFile(controlfilename string) (string, [][]CodePoint, error) {
 			}
 			parsedBase = int(base)
 		} else if strings.HasPrefix(l, "code") {
-			// TODO add to codeblocks
+			cmd := strings.Split(strings.TrimPrefix(l, "code"), ",")
+			if len(cmd) != 2 {
+				return "", nil, errors.New("bad code command")
+			}
+			parsedAddress, err := strconv.ParseInt(strings.TrimSpace(cmd[0]), 0, 0)
+			if err != nil {
+				return "", nil, err
+			}
+			parsedLength, err := strconv.ParseInt(strings.TrimSpace(cmd[1]), 0, 0)
+			if err != nil {
+				return "", nil, err
+			}
 			var newBlock CodeBlock
-			newBlock.address = 0x4800
-			newBlock.length = 4
+			newBlock.address = int(parsedAddress)
+			newBlock.length = int(parsedLength)
 			codeBlocks = append(codeBlocks, newBlock)
-		} // Not sure if we need data?
+		}
 
 		fmt.Println(s.Text())
 	}
@@ -278,18 +290,16 @@ func parseControlFile(controlfilename string) (string, [][]CodePoint, error) {
 		d[i].bytetype = DATA
 	}
 
-	// TODO go through code segments above and set up the data
+	// Now go through code segments above and set up the code blocks
 	for _, v := range codeBlocks {
 		fmt.Printf("Code block at 0x%x, length %d\n", v.address, v.length)
+		dave := v.address - parsedBase // file offset
+		for i, j := dave, 0; j < v.length; i, j = i+1, j+1 {
+			d[i].bytetype = CODE
+		}
 	}
 
-	// In pantry antics, executable code starts at 0x4800, so 0x4800-0x2000 = 0x2800
-	// Normally we would read this out the control file.
-	for i := 0x2800; i < filesize; i++ {
-		d[i].bytetype = CODE
-	}
-
-	// Now create the slices from the data types
+	// Finally, create the slices from the data types
 	lastByteType := -1
 	idx := -1
 
@@ -309,6 +319,7 @@ func parseControlFile(controlfilename string) (string, [][]CodePoint, error) {
 
 func applyComments() {
 	// tie a comment to an address, since line number can change as we go
+	// perhaps define a 'comment column' and write text up to that point?
 }
 
 func dis(data []byte, baseAddress int, asmType int) {
