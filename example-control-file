@@ -1,4 +1,3 @@
 file ../antics-disasm/pantry.bin
 base 0x2000
 code 0x4800,n
-data 0x4801,1

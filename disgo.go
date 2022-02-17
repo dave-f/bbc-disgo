@@ -216,12 +216,10 @@ type CodePoint struct {
 	bytetype int // code or data?
 }
 
-// Parse the control file.  Control files currently have 4 commands:
-// file - the source file
-// base - set the base address
-// code,n - mark the region as code
-// data,n - mark the region as data
-// trgt - the target file?
+// Parse the control file.  Control files currently have 3 commands:
+// file <file> - the source file
+// base <address> - set the base address
+// code <address> <count> - mark a region as code
 func parseControlFile(controlfilename string) (string, [][]CodePoint, error) {
 
 	var parsedFilename string
@@ -234,6 +232,12 @@ func parseControlFile(controlfilename string) (string, [][]CodePoint, error) {
 
 	defer f.Close()
 
+	type CodeBlock struct {
+		address int
+		length  int
+	}
+
+	codeBlocks := make([]CodeBlock, 0, 5)
 	s := bufio.NewScanner(f)
 
 	for s.Scan() {
@@ -247,10 +251,13 @@ func parseControlFile(controlfilename string) (string, [][]CodePoint, error) {
 			}
 			parsedBase = int(base)
 		} else if strings.HasPrefix(l, "code") {
-			// TODO
-		} else if strings.HasPrefix(l, "data") {
-			// TODO
-		}
+			// TODO add to codeblocks
+			var newBlock CodeBlock
+			newBlock.address = 0x4800
+			newBlock.length = 4
+			codeBlocks = append(codeBlocks, newBlock)
+		} // Not sure if we need data?
+
 		fmt.Println(s.Text())
 	}
 
@@ -271,8 +278,10 @@ func parseControlFile(controlfilename string) (string, [][]CodePoint, error) {
 		d[i].bytetype = DATA
 	}
 
-	// TODO go through code/data segments above and set up the data
-	// check for overlaps?
+	// TODO go through code segments above and set up the data
+	for _, v := range codeBlocks {
+		fmt.Printf("Code block at 0x%x, length %d\n", v.address, v.length)
+	}
 
 	// In pantry antics, executable code starts at 0x4800, so 0x4800-0x2000 = 0x2800
 	// Normally we would read this out the control file.
