@@ -1,10 +1,13 @@
 package main
 
 import (
+	"bufio"
 	"flag"
 	"fmt"
 	"io/ioutil"
 	"os"
+	"strconv"
+	"strings"
 )
 
 const (
@@ -213,19 +216,63 @@ type CodePoint struct {
 	bytetype int // code or data?
 }
 
-// Parse the control file - for now a lot of this is hardcoded
-func parseControlFile(filename string, controlfile string, filesize int) ([][]CodePoint, error) {
-	base := 0x2000
+// Parse the control file.  Control files currently have 4 commands:
+// file - the source file
+// base - set the base address
+// code,n - mark the region as code
+// data,n - mark the region as data
+// trgt - the target file?
+func parseControlFile(controlfilename string) (string, [][]CodePoint, error) {
 
+	var parsedFilename string
+	var parsedBase int
+	f, err := os.Open(controlfilename)
+
+	if err != nil {
+		return "", nil, err
+	}
+
+	defer f.Close()
+
+	s := bufio.NewScanner(f)
+
+	for s.Scan() {
+		l := strings.TrimSpace(s.Text())
+		if strings.HasPrefix(l, "file") {
+			parsedFilename = strings.TrimSpace(strings.TrimPrefix(l, "file"))
+		} else if strings.HasPrefix(l, "base") {
+			base, err := strconv.ParseInt(strings.TrimSpace(strings.TrimPrefix(l, "base")), 0, 0)
+			if err != nil {
+				return "", nil, err
+			}
+			parsedBase = int(base)
+		} else if strings.HasPrefix(l, "code") {
+			// TODO
+		} else if strings.HasPrefix(l, "data") {
+			// TODO
+		}
+		fmt.Println(s.Text())
+	}
+
+	fi, err := os.Stat(parsedFilename)
+
+	if err != nil {
+		return "", nil, err
+	}
+
+	filesize := int(fi.Size())
 	d := make([]CodePoint, filesize)
 	r := make([][]CodePoint, 0, 5)
 
 	// Assume all bytes are data to begin with
 	for i := 0; i < filesize; i++ {
 		d[i].offset = i
-		d[i].address = base + i
+		d[i].address = parsedBase + i
 		d[i].bytetype = DATA
 	}
+
+	// TODO go through code/data segments above and set up the data
+	// check for overlaps?
 
 	// In pantry antics, executable code starts at 0x4800, so 0x4800-0x2000 = 0x2800
 	// Normally we would read this out the control file.
@@ -233,13 +280,12 @@ func parseControlFile(filename string, controlfile string, filesize int) ([][]Co
 		d[i].bytetype = CODE
 	}
 
-	// Now slice it up
+	// Now create the slices from the data types
 	lastByteType := -1
 	idx := -1
 
 	for _, v := range d {
 		if v.bytetype != lastByteType {
-			// create new slice
 			// fmt.Printf("New slice at 0x%x\n", v.address)
 			idx++
 			r = append(r, make([]CodePoint, 0, filesize))
@@ -249,8 +295,7 @@ func parseControlFile(filename string, controlfile string, filesize int) ([][]Co
 		lastByteType = v.bytetype
 	}
 
-	// TODO error on any overlap?
-	return r, nil
+	return parsedFilename, r, nil
 }
 
 func applyComments() {
@@ -356,11 +401,21 @@ func main() {
 	flag.Parse()
 
 	if flag.NArg() != 1 {
-		fmt.Println("Usage: disgo <filename>")
+		fmt.Println("Usage: disgo <control file>")
 		return
 	}
 
-	f, err := os.Open(flag.Arg(0))
+	// sourceFile is the filename
+	// p is the parsed data points
+	sourceFilename, p, err := parseControlFile(flag.Arg(0))
+
+	if err != nil {
+		fmt.Println(err)
+		return
+	}
+
+	fmt.Println("Working with", sourceFilename)
+	f, err := os.Open(sourceFilename)
 
 	if err != nil {
 		fmt.Println(err)
@@ -372,19 +427,6 @@ func main() {
 
 	if err != nil {
 		fmt.Println(err)
-		return
-	}
-
-	var totalBytes = len(data)
-	p, err := parseControlFile(flag.Arg(0), "controlfile.txt", totalBytes) // controlfile will be arg(0) with filename etc in it
-
-	if err != nil {
-		fmt.Println(err)
-		return
-	}
-
-	if len(p) == 0 {
-		fmt.Println("No sections found")
 		return
 	}
 
