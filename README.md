@@ -10,14 +10,14 @@ Invoke the program by passing the filename of the control file:
 go run disgo.go <filename>
 ````
 
-The control file specifies which file to process as well as a base address and which parts of the file are code.
+The control file specifies which file to process as well as a base address and which parts of the file are data.
 
 It supports the following commands:
 
 ````
 file <string> - Specifies the input file (ie. a 6502 binary)
 base <address> - Set the base address
-code <address>,<length> - Mark the range at address,length as code
+data <address>,<length> - Mark the range at address,length as data
 ````
 
 Numbers (ie `address` and `length`) can be decimal or hex (prefixed with `0x`).  See `example-control-file` for an example of these.

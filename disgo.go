@@ -233,12 +233,12 @@ func parseControlFile(controlfilename string) (string, [][]CodePoint, error) {
 
 	defer f.Close()
 
-	type CodeBlock struct {
+	type DataBlock struct {
 		address int
 		length  int
 	}
 
-	codeBlocks := make([]CodeBlock, 0, 5)
+	dataBlocks := make([]DataBlock, 0, 5)
 	s := bufio.NewScanner(f)
 
 	for s.Scan() {
@@ -251,10 +251,10 @@ func parseControlFile(controlfilename string) (string, [][]CodePoint, error) {
 				return "", nil, err
 			}
 			parsedBase = int(base)
-		} else if strings.HasPrefix(l, "code") {
-			cmd := strings.Split(strings.TrimPrefix(l, "code"), ",")
+		} else if strings.HasPrefix(l, "data") {
+			cmd := strings.Split(strings.TrimPrefix(l, "data"), ",")
 			if len(cmd) != 2 {
-				return "", nil, errors.New("bad code command")
+				return "", nil, errors.New("bad data command")
 			}
 			parsedAddress, err := strconv.ParseInt(strings.TrimSpace(cmd[0]), 0, 0)
 			if err != nil {
@@ -264,13 +264,11 @@ func parseControlFile(controlfilename string) (string, [][]CodePoint, error) {
 			if err != nil {
 				return "", nil, err
 			}
-			var newBlock CodeBlock
+			var newBlock DataBlock
 			newBlock.address = int(parsedAddress)
 			newBlock.length = int(parsedLength)
-			codeBlocks = append(codeBlocks, newBlock)
+			dataBlocks = append(dataBlocks, newBlock)
 		}
-
-		fmt.Println(s.Text())
 	}
 
 	fi, err := os.Stat(parsedFilename)
@@ -283,19 +281,19 @@ func parseControlFile(controlfilename string) (string, [][]CodePoint, error) {
 	d := make([]CodePoint, filesize)
 	r := make([][]CodePoint, 0, 5)
 
-	// Assume all bytes are data to begin with
+	// Assume all bytes are code to begin with
 	for i := 0; i < filesize; i++ {
 		d[i].offset = i
 		d[i].address = parsedBase + i
-		d[i].bytetype = DATA
+		d[i].bytetype = CODE
 	}
 
-	// Now go through code segments above and set up the code blocks
-	for _, v := range codeBlocks {
-		fmt.Printf("Code block at 0x%x, length %d\n", v.address, v.length)
-		dave := v.address - parsedBase // file offset
-		for i, j := dave, 0; j < v.length; i, j = i+1, j+1 {
-			d[i].bytetype = CODE
+	// Now go through data segments above and set up the byte types
+	for _, v := range dataBlocks {
+		//fmt.Printf("Data block at 0x%x, length %d\n", v.address, v.length)
+		fileOffs := v.address - parsedBase // file offset
+		for i, j := fileOffs, 0; j < v.length; i, j = i+1, j+1 {
+			d[i].bytetype = DATA
 		}
 	}
 
@@ -317,9 +315,13 @@ func parseControlFile(controlfilename string) (string, [][]CodePoint, error) {
 	return parsedFilename, r, nil
 }
 
+func saveComments() {
+	// go through the target file, saving all comments and their address
+}
+
 func applyComments() {
-	// tie a comment to an address, since line number can change as we go
-	// perhaps define a 'comment column' and write text up to that point?
+	// re-apply these comments to the new file
+	// perhaps define a 'comment column' and write text up to that point.
 }
 
 func dis(data []byte, baseAddress int, asmType int) {
@@ -418,6 +420,9 @@ func dis(data []byte, baseAddress int, asmType int) {
 
 func main() {
 
+	wipeComments := flag.Bool("wipe", false, "Wipe comments")
+	_ = flag.Uint("column", 48, "The default comment column")
+
 	flag.Parse()
 
 	if flag.NArg() != 1 {
@@ -434,7 +439,6 @@ func main() {
 		return
 	}
 
-	fmt.Println("Working with", sourceFilename)
 	f, err := os.Open(sourceFilename)
 
 	if err != nil {
@@ -450,10 +454,18 @@ func main() {
 		return
 	}
 
+	if !*wipeComments {
+		saveComments()
+	}
+
 	for _, v := range p {
 		thisSlice := data[v[0].offset : 1+v[len(v)-1].offset]
 		fmt.Printf("Disassembling slice length %d address 0x%x type %d\n", len(thisSlice), v[0].address, v[0].bytetype)
 		dis(thisSlice, v[0].address, v[0].bytetype)
+	}
+
+	if !*wipeComments {
+		applyComments()
 	}
 
 	fmt.Println("Done")
