@@ -208,8 +208,9 @@ const (
 )
 
 type CodePoint struct {
-	address  int
-	bytetype int
+	offset   int // actual offset in file?
+	address  int // address
+	bytetype int // code or data?
 }
 
 // Parse the control file - for now a lot of this is hardcoded
@@ -221,6 +222,7 @@ func parseControlFile(filename string, controlfile string, filesize int) ([][]Co
 
 	// Assume all bytes are data to begin with
 	for i := 0; i < filesize; i++ {
+		d[i].offset = i
 		d[i].address = base + i
 		d[i].bytetype = DATA
 	}
@@ -238,7 +240,7 @@ func parseControlFile(filename string, controlfile string, filesize int) ([][]Co
 	for _, v := range d {
 		if v.bytetype != lastByteType {
 			// create new slice
-			fmt.Printf("New slice at 0x%x\n", v.address)
+			// fmt.Printf("New slice at 0x%x\n", v.address)
 			idx++
 			r = append(r, make([]CodePoint, 0, filesize))
 		}
@@ -247,12 +249,106 @@ func parseControlFile(filename string, controlfile string, filesize int) ([][]Co
 		lastByteType = v.bytetype
 	}
 
-	// TODO error on any overlap
+	// TODO error on any overlap?
 	return r, nil
 }
 
 func applyComments() {
 	// tie a comment to an address, since line number can change as we go
+}
+
+func dis(data []byte, baseAddress int, asmType int) {
+	var currentOffset = 0
+	var totalBytes = len(data)
+	last := false
+
+	for currentOffset < totalBytes {
+		var thisByte byte = data[currentOffset]
+		var mode = opmode[thisByte]
+		var bytesRequired = 0
+
+		switch {
+		case (mode > MARK3):
+			bytesRequired = 2
+		case (mode > MARK2):
+			bytesRequired = 1
+		}
+
+		var name = opname[thisByte]
+		var outputStr = fmt.Sprintf("%02X ", baseAddress+currentOffset)
+
+		// If we do not have enough bytes in this slice to disassemble this instruction, drop out here
+		if (currentOffset + bytesRequired) >= totalBytes {
+			bytesRequired = totalBytes - (currentOffset + bytesRequired)
+			last = true
+		}
+
+		for i := 0; i < 3; i++ {
+			if i <= bytesRequired {
+				outputStr += fmt.Sprintf("%02X ", data[currentOffset+i])
+			} else {
+				outputStr += "   "
+			}
+		}
+
+		if last {
+			outputStr += "???"
+			fmt.Println(outputStr)
+			break
+		}
+
+		outputStr += opstring[name]
+		currentOffset++
+
+		switch mode {
+		//case IMP:
+		case IMPA:
+			outputStr += " A"
+		case BRA:
+			branchRange := int(int8(data[currentOffset] + 1))
+			branchTarget := (currentOffset + branchRange) + baseAddress
+			outputStr += fmt.Sprintf(" &%04X", branchTarget)
+			currentOffset++
+		case IMM:
+			outputStr += fmt.Sprintf(" #&%02X", data[currentOffset])
+			currentOffset++
+		case ZP:
+			outputStr += fmt.Sprintf(" &%02X", data[currentOffset])
+			currentOffset++
+		case ZPX:
+			outputStr += fmt.Sprintf(" &%02X,X", data[currentOffset])
+			currentOffset++
+		case ZPY:
+			outputStr += fmt.Sprintf(" &%02X,Y", data[currentOffset])
+			currentOffset++
+		case IND:
+			outputStr += fmt.Sprintf(" (&%02X)", data[currentOffset])
+			currentOffset++
+		case INDX:
+			outputStr += fmt.Sprintf(" (&%02X,X)", data[currentOffset])
+			currentOffset++
+		case INDY:
+			outputStr += fmt.Sprintf(" (&%02X),Y", data[currentOffset])
+			currentOffset++
+		case ABS:
+			outputStr += fmt.Sprintf(" &%02X%02X", data[currentOffset+1], data[currentOffset+0])
+			currentOffset += 2
+		case ABSX:
+			outputStr += fmt.Sprintf(" &%02X%02X,X", data[currentOffset+1], data[currentOffset+0])
+			currentOffset += 2
+		case ABSY:
+			outputStr += fmt.Sprintf(" &%02X%02X,Y", data[currentOffset+1], data[currentOffset+0])
+			currentOffset += 2
+		case IND16:
+			outputStr += fmt.Sprintf(" (&%02X%02X)", data[currentOffset+1], data[currentOffset+0])
+			currentOffset += 2
+		case IND1X:
+			outputStr += fmt.Sprintf(" (&%02X%02X,X)", data[currentOffset+1], data[currentOffset+0])
+			currentOffset += 2
+		}
+
+		fmt.Println(outputStr)
+	}
 }
 
 func main() {
@@ -288,107 +384,15 @@ func main() {
 	}
 
 	if len(p) == 0 {
-		fmt.Println("Nothing found")
+		fmt.Println("No sections found")
 		return
 	}
 
-	baseAddress := p[0][0].address
-	fmt.Printf("Base address is 0x%x, with %d bytes in file\n", baseAddress, totalBytes)
-
-	for i, v := range p {
-		fmt.Println(i, len(v))
-		//dis(v)
+	for _, v := range p {
+		thisSlice := data[v[0].offset : 1+v[len(v)-1].offset]
+		fmt.Printf("Disassembling slice length %d address 0x%x type %d\n", len(thisSlice), v[0].address, v[0].bytetype)
+		dis(thisSlice, v[0].address, v[0].bytetype)
 	}
 
-	return
-
-	// TODO move this to dis function
-	//      if type is code, disassemble normally
-	//      if type is data, just print out the byte
-
-	var currentOffset = 0
-
-	for currentOffset < totalBytes {
-
-		var thisByte byte = data[currentOffset]
-		var mode = opmode[thisByte]
-		var bytesRequired = 0
-
-		switch {
-		case (mode > MARK3):
-			bytesRequired = 2
-		case (mode > MARK2):
-			bytesRequired = 1
-		}
-
-		var name = opname[thisByte]
-
-		if totalBytes-currentOffset < bytesRequired {
-			panic("todo")
-		}
-
-		var outputStr = fmt.Sprintf("%02X ", baseAddress+currentOffset)
-
-		for i := 0; i < 3; i++ {
-			if i <= bytesRequired {
-				outputStr += fmt.Sprintf("%02X ", data[currentOffset+i])
-			} else {
-				outputStr += "   "
-			}
-		}
-
-		outputStr += opstring[name]
-		currentOffset++
-
-		switch mode {
-		//case IMP:
-		case IMPA:
-			outputStr += " A"
-		case BRA:
-			branchRange := int(int8(data[currentOffset] + 1))
-			branchTarget := (currentOffset + branchRange) + baseAddress
-			outputStr += fmt.Sprintf(" &%04X", branchTarget)
-			currentOffset++
-		case IMM:
-			outputStr += fmt.Sprintf(" #&%02X", data[currentOffset])
-			currentOffset++
-			break
-		case ZP:
-			outputStr += fmt.Sprintf(" &%02X", data[currentOffset])
-			currentOffset++
-			break
-		case ZPX:
-			outputStr += fmt.Sprintf(" &%02X,X", data[currentOffset])
-			currentOffset++
-		case ZPY:
-			outputStr += fmt.Sprintf(" &%02X,Y", data[currentOffset])
-			currentOffset++
-		case IND:
-			outputStr += fmt.Sprintf(" (&%02X)", data[currentOffset])
-			currentOffset++
-		case INDX:
-			outputStr += fmt.Sprintf(" (&%02X,X)", data[currentOffset])
-			currentOffset++
-		case INDY:
-			outputStr += fmt.Sprintf(" (&%02X),Y", data[currentOffset])
-			currentOffset++
-		case ABS:
-			outputStr += fmt.Sprintf(" &%02X%02X", data[currentOffset+1], data[currentOffset+0])
-			currentOffset += 2
-		case ABSX:
-			outputStr += fmt.Sprintf(" &%02X%02X,X", data[currentOffset+1], data[currentOffset+0])
-			currentOffset += 2
-		case ABSY:
-			outputStr += fmt.Sprintf(" &%02X%02X,Y", data[currentOffset+1], data[currentOffset+0])
-			currentOffset += 2
-		case IND16:
-			outputStr += fmt.Sprintf(" (&%02X%02X)", data[currentOffset+1], data[currentOffset+0])
-			currentOffset += 2
-		case IND1X:
-			outputStr += fmt.Sprintf(" (&%02X%02X,X)", data[currentOffset+1], data[currentOffset+0])
-			currentOffset += 2
-		}
-
-		fmt.Println(outputStr)
-	}
+	fmt.Println("Done")
 }
