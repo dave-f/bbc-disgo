@@ -432,10 +432,18 @@ func main() {
 	wipeComments := flag.Bool("wipe", false, "Wipe comments")
 	_ = flag.Uint("column", 48, "The default comment column")
 
+	usageFunc := func() {
+		fmt.Println("Usage: disgo <control file>")
+		fmt.Printf("Options:\n")
+		flag.PrintDefaults()
+	}
+
+	flag.Usage = usageFunc
+
 	flag.Parse()
 
 	if flag.NArg() != 1 {
-		fmt.Println("Usage: disgo <control file>")
+		usageFunc()
 		return
 	}
 
