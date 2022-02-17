@@ -220,7 +220,7 @@ type CodePoint struct {
 // Parse the control file.  Control files currently have 3 commands:
 // file <file> - the source file
 // base <address> - set the base address
-// code <address> <count> - mark a region as code
+// data <address>,<count> - mark a region as data
 func parseControlFile(controlfilename string) (string, [][]CodePoint, error) {
 
 	var parsedFilename string
@@ -341,7 +341,16 @@ func dis(data []byte, baseAddress int, asmType int) {
 			bytesRequired = 1
 		}
 
-		var name = opname[thisByte]
+		var name int
+
+		if asmType == DATA {
+			bytesRequired = 0
+			mode = IMP
+			name = len(opstring) - 1
+		} else {
+			name = opname[thisByte]
+		}
+
 		var outputStr = fmt.Sprintf("%02X ", baseAddress+currentOffset)
 
 		// If we do not have enough bytes in this slice to disassemble this instruction, drop out here
@@ -460,7 +469,15 @@ func main() {
 
 	for _, v := range p {
 		thisSlice := data[v[0].offset : 1+v[len(v)-1].offset]
-		fmt.Printf("Disassembling slice length %d address 0x%x type %d\n", len(thisSlice), v[0].address, v[0].bytetype)
+		var thisSliceType string
+		if v[0].bytetype == 0 {
+			thisSliceType = "data"
+		} else if v[0].bytetype == 1 {
+			thisSliceType = "code"
+		} else {
+			thisSliceType = "undefined"
+		}
+		fmt.Printf("Disassembling slice length %d address 0x%x type %s\n", len(thisSlice), v[0].address, thisSliceType)
 		dis(thisSlice, v[0].address, v[0].bytetype)
 	}
 
