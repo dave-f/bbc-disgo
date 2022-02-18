@@ -361,12 +361,16 @@ func saveComments(targetFilename string, commentCol int) ([]Comment, error) {
 	return comments, nil
 }
 
-// Apply the comments to a new file
-func applyComments(comments []Comment, filename string) error {
-	return nil
+func getCommentForAddress(address int, comments []Comment) (bool, string) {
+	for _, i := range comments {
+		if i.address == address {
+			return true, i.comment
+		}
+	}
+	return false, ""
 }
 
-func dis(data []byte, baseAddress int, asmType int, writer io.Writer) {
+func dis(data []byte, baseAddress int, asmType int, writer io.Writer, applyComments bool, comments []Comment, commentColumn int) {
 	var currentOffset = 0
 	var totalBytes = len(data)
 	last := false
@@ -394,6 +398,7 @@ func dis(data []byte, baseAddress int, asmType int, writer io.Writer) {
 		}
 
 		var outputStr = fmt.Sprintf("%02X ", baseAddress+currentOffset)
+		commentExists, commentText := getCommentForAddress(baseAddress+currentOffset, comments)
 
 		// If we do not have enough bytes in this slice to disassemble this instruction, drop out here
 		if (currentOffset + bytesRequired) >= totalBytes {
@@ -465,6 +470,13 @@ func dis(data []byte, baseAddress int, asmType int, writer io.Writer) {
 			currentOffset += 2
 		}
 
+		if commentExists {
+			formatStr := fmt.Sprintf("%%-%ds", commentColumn)
+			outputStr = fmt.Sprintf(formatStr, outputStr)
+			outputStr += ";"
+			outputStr += commentText
+		}
+
 		_, err := io.WriteString(writer, outputStr+"\n")
 
 		if err != nil {
@@ -478,6 +490,7 @@ func main() {
 
 	wipeComments := flag.Bool("wipe", false, "Wipe comments")
 	commentColumn := flag.Int("column", 48, "Column number for comments")
+	_ = flag.Bool("stdout", false, "Output to stdout rather than the specifed file (TODO)")
 
 	usageFunc := func() {
 		fmt.Println("Usage: disgo <control file>")
@@ -517,6 +530,11 @@ func main() {
 
 	var comments []Comment
 
+	if *commentColumn < 28 {
+		fmt.Println("Comment column too low; defaulting to 48")
+		*commentColumn = 48
+	}
+
 	if !*wipeComments {
 		comments, err = saveComments(targetFilename, *commentColumn)
 		if err != nil {
@@ -543,13 +561,7 @@ func main() {
 				thisSliceType = "undefined"
 			}
 			fmt.Printf("Disassembling slice length %d address 0x%x type %s\n", len(thisSlice), v[0].address, thisSliceType)
-			// TODO pass in comments (or nil)
-			dis(thisSlice, v[0].address, v[0].bytetype, of)
-		}
-
-		if !*wipeComments {
-			// TODO move this above
-			applyComments(comments, targetFilename)
+			dis(thisSlice, v[0].address, v[0].bytetype, of, !*wipeComments, comments, *commentColumn)
 		}
 	} else {
 		fmt.Println(err)
