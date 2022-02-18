@@ -15,9 +15,10 @@ The control file specifies which file to process as well as a base address and w
 It supports the following commands:
 
 ````
-file <string> - Specifies the input file (ie. a 6502 binary)
+load <string> - Specifies the input file (ie. a 6502 binary)
 base <address> - Set the base address
 data <address>,<length> - Mark the range at address,length as data
+save <string> - Set the output file
 ````
 
 Numbers (ie `address` and `length`) can be decimal or hex (prefixed with `0x`).  See `example-control-file` for an example of these.

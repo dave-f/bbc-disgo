@@ -217,18 +217,20 @@ type CodePoint struct {
 	bytetype int // code (1) or data (0)
 }
 
-// Parse the control file.  Control files currently have 3 commands:
-// file <file> - the source file
+// Parse the control file.  Control files currently have 4 commands:
+// load <file> - the source file
 // base <address> - set the base address
-// data <address>,<count> - mark a region as data
-func parseControlFile(controlfilename string) (string, [][]CodePoint, error) {
+// data <address>,<count> - mark a region as data (can be used multiple times)
+// save <file> - the target file
+func parseControlFile(controlfilename string) (string, string, [][]CodePoint, error) {
 
-	var parsedFilename string
+	var parsedLoadFile string
+	var parsedSaveFile string
 	var parsedBase int
 	f, err := os.Open(controlfilename)
 
 	if err != nil {
-		return "", nil, err
+		return "", "", nil, err
 	}
 
 	defer f.Close()
@@ -243,38 +245,40 @@ func parseControlFile(controlfilename string) (string, [][]CodePoint, error) {
 
 	for s.Scan() {
 		l := strings.TrimSpace(s.Text())
-		if strings.HasPrefix(l, "file") {
-			parsedFilename = strings.TrimSpace(strings.TrimPrefix(l, "file"))
+		if strings.HasPrefix(l, "load") {
+			parsedLoadFile = strings.TrimSpace(strings.TrimPrefix(l, "load"))
 		} else if strings.HasPrefix(l, "base") {
 			base, err := strconv.ParseInt(strings.TrimSpace(strings.TrimPrefix(l, "base")), 0, 0)
 			if err != nil {
-				return "", nil, err
+				return "", "", nil, err
 			}
 			parsedBase = int(base)
 		} else if strings.HasPrefix(l, "data") {
 			cmd := strings.Split(strings.TrimPrefix(l, "data"), ",")
 			if len(cmd) != 2 {
-				return "", nil, errors.New("bad data command")
+				return "", "", nil, errors.New("bad data command")
 			}
 			parsedAddress, err := strconv.ParseInt(strings.TrimSpace(cmd[0]), 0, 0)
 			if err != nil {
-				return "", nil, err
+				return "", "", nil, err
 			}
 			parsedLength, err := strconv.ParseInt(strings.TrimSpace(cmd[1]), 0, 0)
 			if err != nil {
-				return "", nil, err
+				return "", "", nil, err
 			}
 			var newBlock DataBlock
 			newBlock.address = int(parsedAddress)
 			newBlock.length = int(parsedLength)
 			dataBlocks = append(dataBlocks, newBlock)
+		} else if strings.HasPrefix(l, "save") {
+			parsedSaveFile = strings.TrimSpace(strings.TrimPrefix(l, "save"))
 		}
 	}
 
-	fi, err := os.Stat(parsedFilename)
+	fi, err := os.Stat(parsedLoadFile)
 
 	if err != nil {
-		return "", nil, err
+		return "", "", nil, err
 	}
 
 	filesize := int(fi.Size())
@@ -312,16 +316,53 @@ func parseControlFile(controlfilename string) (string, [][]CodePoint, error) {
 		lastByteType = v.bytetype
 	}
 
-	return parsedFilename, r, nil
+	return parsedLoadFile, parsedSaveFile, r, nil
 }
 
-func saveComments() {
-	// go through the target file, saving all comments and their address
+type Comment struct {
+	address int
+	comment string
 }
 
-func applyComments() {
-	// re-apply these comments to the new file
-	// perhaps define a 'comment column' and write text up to that point.
+// Go through the target file, saving all comments and their address
+func saveComments(targetFilename string, commentCol int) ([]Comment, error) {
+	f, err := os.Open(targetFilename)
+
+	if err != nil {
+		return nil, err
+	}
+
+	defer f.Close()
+
+	comments := make([]Comment, 0, 10)
+	s := bufio.NewScanner(f)
+
+	for s.Scan() {
+		l := s.Text()
+		if len(l) > commentCol {
+			p := strings.SplitN(l, " ", 2)
+			if (l[commentCol] == ';') && (len(p) == 2) {
+				var newComment Comment
+				a, err := strconv.ParseInt(p[0], 16, 0)
+				if err == nil {
+					c := strings.SplitN(l, ";", 2)
+					fmt.Println("Comment at", p[0], "->", c[1])
+					newComment.address = int(a)
+					newComment.comment = c[1]
+					comments = append(comments, newComment)
+				} else {
+					fmt.Println("Error parsing comments", err)
+				}
+			}
+		}
+	}
+
+	return comments, nil
+}
+
+// Apply the comments to a new file
+func applyComments(comments []Comment, filename string) error {
+	return nil
 }
 
 func dis(data []byte, baseAddress int, asmType int) {
@@ -430,7 +471,7 @@ func dis(data []byte, baseAddress int, asmType int) {
 func main() {
 
 	wipeComments := flag.Bool("wipe", false, "Wipe comments")
-	_ = flag.Uint("column", 48, "The default comment column")
+	commentColumn := flag.Int("column", 48, "Column number for comments")
 
 	usageFunc := func() {
 		fmt.Println("Usage: disgo <control file>")
@@ -439,7 +480,6 @@ func main() {
 	}
 
 	flag.Usage = usageFunc
-
 	flag.Parse()
 
 	if flag.NArg() != 1 {
@@ -447,9 +487,7 @@ func main() {
 		return
 	}
 
-	// sourceFile is the filename
-	// p is the parsed data points
-	sourceFilename, p, err := parseControlFile(flag.Arg(0))
+	sourceFilename, targetFilename, p, err := parseControlFile(flag.Arg(0))
 
 	if err != nil {
 		fmt.Println(err)
@@ -471,8 +509,15 @@ func main() {
 		return
 	}
 
+	var comments []Comment
+
 	if !*wipeComments {
-		saveComments()
+		comments, err = saveComments(targetFilename, *commentColumn)
+		if err != nil {
+			fmt.Println("Cannot read comments:", err, "(Possibly new target file)")
+		} else {
+			fmt.Println("Comments found", len(comments))
+		}
 	}
 
 	for _, v := range p {
@@ -490,7 +535,7 @@ func main() {
 	}
 
 	if !*wipeComments {
-		applyComments()
+		applyComments(comments, targetFilename)
 	}
 
 	fmt.Println("Done")

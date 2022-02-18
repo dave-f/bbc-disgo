@@ -1,3 +1,6 @@
-file ../antics-disasm/pantry.bin
+load ../antics-disasm/pantry.bin
 base 0x2000
 data 0x2000,9
+data 0x47ff,1
+data 0x40df,349
+save ../antics-disasm/pantry.dis
