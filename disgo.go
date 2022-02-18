@@ -489,7 +489,7 @@ func dis(data []byte, baseAddress int, asmType int, writer io.Writer, applyComme
 func main() {
 
 	wipeComments := flag.Bool("wipe", false, "Wipe comments")
-	commentColumn := flag.Int("column", 48, "Column number for comments")
+	commentColumn := flag.Int("column", 28, "Column number for comments")
 	_ = flag.Bool("stdout", false, "Output to stdout rather than the specifed file (TODO)")
 
 	usageFunc := func() {
@@ -531,8 +531,8 @@ func main() {
 	var comments []Comment
 
 	if *commentColumn < 28 {
-		fmt.Println("Comment column too low; defaulting to 48")
-		*commentColumn = 48
+		fmt.Println("Comment column too low; defaulting to 28")
+		*commentColumn = 28
 	}
 
 	if !*wipeComments {
