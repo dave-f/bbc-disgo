@@ -5,6 +5,7 @@ import (
 	"errors"
 	"flag"
 	"fmt"
+	"io"
 	"io/ioutil"
 	"os"
 	"strconv"
@@ -342,11 +343,11 @@ func saveComments(targetFilename string, commentCol int) ([]Comment, error) {
 		if len(l) > commentCol {
 			p := strings.SplitN(l, " ", 2)
 			if (l[commentCol] == ';') && (len(p) == 2) {
-				var newComment Comment
 				a, err := strconv.ParseInt(p[0], 16, 0)
 				if err == nil {
 					c := strings.SplitN(l, ";", 2)
 					fmt.Println("Comment at", p[0], "->", c[1])
+					var newComment Comment
 					newComment.address = int(a)
 					newComment.comment = c[1]
 					comments = append(comments, newComment)
@@ -365,7 +366,7 @@ func applyComments(comments []Comment, filename string) error {
 	return nil
 }
 
-func dis(data []byte, baseAddress int, asmType int) {
+func dis(data []byte, baseAddress int, asmType int, writer io.Writer) {
 	var currentOffset = 0
 	var totalBytes = len(data)
 	last := false
@@ -464,7 +465,12 @@ func dis(data []byte, baseAddress int, asmType int) {
 			currentOffset += 2
 		}
 
-		fmt.Println(outputStr)
+		_, err := io.WriteString(writer, outputStr+"\n")
+
+		if err != nil {
+			fmt.Println(err)
+			break
+		}
 	}
 }
 
@@ -514,29 +520,41 @@ func main() {
 	if !*wipeComments {
 		comments, err = saveComments(targetFilename, *commentColumn)
 		if err != nil {
-			fmt.Println("Cannot read comments:", err, "(Possibly new target file)")
+			fmt.Println("Cannot read comments (possibly new target file?)")
 		} else {
 			fmt.Println("Comments found", len(comments))
 		}
 	}
 
-	for _, v := range p {
-		thisSlice := data[v[0].offset : 1+v[len(v)-1].offset]
-		var thisSliceType string
-		if v[0].bytetype == 0 {
-			thisSliceType = "data"
-		} else if v[0].bytetype == 1 {
-			thisSliceType = "code"
-		} else {
-			thisSliceType = "undefined"
+	of, err := os.Create(targetFilename)
+
+	if err == nil {
+
+		defer of.Close()
+
+		for _, v := range p {
+			thisSlice := data[v[0].offset : 1+v[len(v)-1].offset]
+			var thisSliceType string
+			if v[0].bytetype == 0 {
+				thisSliceType = "data"
+			} else if v[0].bytetype == 1 {
+				thisSliceType = "code"
+			} else {
+				thisSliceType = "undefined"
+			}
+			fmt.Printf("Disassembling slice length %d address 0x%x type %s\n", len(thisSlice), v[0].address, thisSliceType)
+			// TODO pass in comments (or nil)
+			dis(thisSlice, v[0].address, v[0].bytetype, of)
 		}
-		fmt.Printf("Disassembling slice length %d address 0x%x type %s\n", len(thisSlice), v[0].address, thisSliceType)
-		dis(thisSlice, v[0].address, v[0].bytetype)
+
+		if !*wipeComments {
+			// TODO move this above
+			applyComments(comments, targetFilename)
+		}
+	} else {
+		fmt.Println(err)
+		return
 	}
 
-	if !*wipeComments {
-		applyComments(comments, targetFilename)
-	}
-
-	fmt.Println("Done")
+	fmt.Println("OK")
 }
