@@ -326,6 +326,7 @@ func parseControlFile(controlfilename string) (string, string, [][]CodePoint, er
 type Comment struct {
 	address int
 	comment string
+	applied bool
 }
 
 // Go through the target file, saving all comments and their address
@@ -349,7 +350,7 @@ func saveComments(targetFilename string, commentCol int) ([]Comment, error) {
 				a, err := strconv.ParseInt(p[0], 16, 0)
 				if err == nil {
 					c := strings.SplitN(l, ";", 2)
-					fmt.Println("Comment at", p[0], "->", c[1])
+					// fmt.Println("Comment at", p[0], "->", c[1])
 					var newComment Comment
 					newComment.address = int(a)
 					newComment.comment = c[1]
@@ -364,13 +365,13 @@ func saveComments(targetFilename string, commentCol int) ([]Comment, error) {
 	return comments, nil
 }
 
-func getCommentForAddress(address int, comments []Comment) (bool, string) {
-	for _, i := range comments {
-		if i.address == address {
-			return true, i.comment
+func getCommentForAddress(address int, comments []Comment) *Comment {
+	for i := range comments {
+		if comments[i].address == address {
+			return &comments[i]
 		}
 	}
-	return false, ""
+	return nil
 }
 
 func dis(data []byte, baseAddress int, asmType int, writer io.Writer, applyComments bool, comments []Comment, commentColumn int) {
@@ -401,7 +402,7 @@ func dis(data []byte, baseAddress int, asmType int, writer io.Writer, applyComme
 		}
 
 		var outputStr = fmt.Sprintf("%02X ", baseAddress+currentOffset)
-		commentExists, commentText := getCommentForAddress(baseAddress+currentOffset, comments)
+		outputComment := getCommentForAddress(baseAddress+currentOffset, comments)
 
 		// If we do not have enough bytes in this slice to disassemble this instruction, drop out here
 		if (currentOffset + bytesRequired) >= totalBytes {
@@ -473,11 +474,12 @@ func dis(data []byte, baseAddress int, asmType int, writer io.Writer, applyComme
 			currentOffset += 2
 		}
 
-		if commentExists {
+		if outputComment != nil {
 			formatStr := fmt.Sprintf("%%-%ds", commentColumn)
 			outputStr = fmt.Sprintf(formatStr, outputStr)
 			outputStr += ";"
-			outputStr += commentText
+			outputStr += outputComment.comment
+			outputComment.applied = true
 		}
 
 		_, err := io.WriteString(writer, outputStr+"\n")
@@ -543,7 +545,7 @@ func main() {
 		if err != nil {
 			fmt.Println("Cannot read comments (missing/new output file?)")
 		} else {
-			fmt.Println("Comments found", len(comments))
+			fmt.Println("Found", len(comments), "comments in", targetFilename)
 		}
 	}
 
@@ -576,6 +578,15 @@ func main() {
 		}
 		fmt.Printf("Disassembling slice length %d address 0x%x type %s\n", len(thisSlice), v[0].address, thisSliceType)
 		dis(thisSlice, v[0].address, v[0].bytetype, of, !*wipeComments, comments, *commentColumn)
+	}
+
+	// Print out comments which haven't been re-applied
+	if !*wipeComments {
+		for _, v := range comments {
+			if !v.applied {
+				fmt.Printf("Comment (originally at 0x%x) not applied: %s\n", v.address, v.comment)
+			}
+		}
 	}
 
 	fmt.Println("OK")
