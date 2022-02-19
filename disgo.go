@@ -279,7 +279,7 @@ func parseControlFile(controlfilename string) (string, string, [][]CodePoint, er
 	fi, err := os.Stat(parsedLoadFile)
 
 	if err != nil {
-		return "", "", nil, err
+		return "", "", nil, errors.New("Error reading input file")
 	}
 
 	filesize := int(fi.Size())
@@ -297,6 +297,9 @@ func parseControlFile(controlfilename string) (string, string, [][]CodePoint, er
 	for _, v := range dataBlocks {
 		//fmt.Printf("Data block at 0x%x, length %d\n", v.address, v.length)
 		fileOffs := v.address - parsedBase // file offset
+		if fileOffs+v.length > filesize {
+			return "", "", nil, fmt.Errorf("block at 0x%x exceeds filesize", v.address)
+		}
 		for i, j := fileOffs, 0; j < v.length; i, j = i+1, j+1 {
 			d[i].bytetype = DATA
 		}
@@ -538,7 +541,7 @@ func main() {
 	if !*wipeComments {
 		comments, err = saveComments(targetFilename, *commentColumn)
 		if err != nil {
-			fmt.Println("Cannot read comments (possibly new target file?)")
+			fmt.Println("Cannot read comments (missing/new output file?)")
 		} else {
 			fmt.Println("Comments found", len(comments))
 		}
@@ -547,6 +550,10 @@ func main() {
 	var of *os.File
 
 	if !*useConsole {
+		if len(targetFilename) == 0 {
+			fmt.Println("No output file specified (use -dry to output to console)")
+			return
+		}
 		of, err = os.Create(targetFilename)
 		if err != nil {
 			fmt.Println(err)
