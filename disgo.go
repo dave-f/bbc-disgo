@@ -490,7 +490,7 @@ func main() {
 
 	wipeComments := flag.Bool("wipe", false, "Wipe comments")
 	commentColumn := flag.Int("column", 28, "Column number for comments")
-	_ = flag.Bool("stdout", false, "Output to stdout rather than the specifed file (TODO)")
+	useConsole := flag.Bool("dry", false, "Dry run (output to stdout rather than the specifed file)")
 
 	usageFunc := func() {
 		fmt.Println("Usage: disgo <control file>")
@@ -544,28 +544,31 @@ func main() {
 		}
 	}
 
-	of, err := os.Create(targetFilename)
+	var of *os.File
 
-	if err == nil {
-
-		defer of.Close()
-
-		for _, v := range p {
-			thisSlice := data[v[0].offset : 1+v[len(v)-1].offset]
-			var thisSliceType string
-			if v[0].bytetype == 0 {
-				thisSliceType = "data"
-			} else if v[0].bytetype == 1 {
-				thisSliceType = "code"
-			} else {
-				thisSliceType = "undefined"
-			}
-			fmt.Printf("Disassembling slice length %d address 0x%x type %s\n", len(thisSlice), v[0].address, thisSliceType)
-			dis(thisSlice, v[0].address, v[0].bytetype, of, !*wipeComments, comments, *commentColumn)
+	if !*useConsole {
+		of, err = os.Create(targetFilename)
+		if err != nil {
+			fmt.Println(err)
+			return
 		}
+		defer of.Close()
 	} else {
-		fmt.Println(err)
-		return
+		of = os.Stdout
+	}
+
+	for _, v := range p {
+		thisSlice := data[v[0].offset : 1+v[len(v)-1].offset]
+		var thisSliceType string
+		if v[0].bytetype == 0 {
+			thisSliceType = "data"
+		} else if v[0].bytetype == 1 {
+			thisSliceType = "code"
+		} else {
+			thisSliceType = "undefined"
+		}
+		fmt.Printf("Disassembling slice length %d address 0x%x type %s\n", len(thisSlice), v[0].address, thisSliceType)
+		dis(thisSlice, v[0].address, v[0].bytetype, of, !*wipeComments, comments, *commentColumn)
 	}
 
 	fmt.Println("OK")
