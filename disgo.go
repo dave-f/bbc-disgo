@@ -525,6 +525,8 @@ func main() {
 		return
 	}
 
+	fmt.Println("Looking at", sourceFilename)
+
 	defer f.Close()
 	data, err := ioutil.ReadAll(f)
 
@@ -582,10 +584,16 @@ func main() {
 
 	// Print out comments which haven't been re-applied
 	if !*wipeComments {
+		commentsApplied := 0
 		for _, v := range comments {
 			if !v.applied {
 				fmt.Printf("Comment (originally at 0x%x) not applied: %s\n", v.address, v.comment)
+			} else {
+				commentsApplied++
 			}
+		}
+		if !*useConsole {
+			fmt.Println("Applied", commentsApplied, "comments to", targetFilename)
 		}
 	}
 
