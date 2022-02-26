@@ -215,23 +215,26 @@ const (
 type CodePoint struct {
 	offset   int // actual offset in file
 	address  int // address
-	bytetype int // code (1) or data (0)
+	bytetype int // CODE or DATA
 }
 
-// Parse the control file.  Control files currently have 4 commands:
+// Parse the control file.  Control files currently have 5 commands:
 // load <file> - the source file
 // base <address> - set the base address
 // data <address>,<count> - mark a region as data (can be used multiple times)
+// exec <address> - set the execution address
 // save <file> - the target file
-func parseControlFile(controlfilename string) (string, string, [][]CodePoint, error) {
+func parseControlFile(controlfilename string) (string, string, int, [][]CodePoint, error) {
 
 	var parsedLoadFile string
 	var parsedSaveFile string
-	var parsedBase int
+	var parsedBase int = -1
+	var parsedExec int = -1
+
 	f, err := os.Open(controlfilename)
 
 	if err != nil {
-		return "", "", nil, err
+		return "", "", -1, nil, err
 	}
 
 	defer f.Close()
@@ -251,21 +254,21 @@ func parseControlFile(controlfilename string) (string, string, [][]CodePoint, er
 		} else if strings.HasPrefix(l, "base") {
 			base, err := strconv.ParseInt(strings.TrimSpace(strings.TrimPrefix(l, "base")), 0, 0)
 			if err != nil {
-				return "", "", nil, err
+				return "", "", -1, nil, err
 			}
 			parsedBase = int(base)
 		} else if strings.HasPrefix(l, "data") {
 			cmd := strings.Split(strings.TrimPrefix(l, "data"), ",")
 			if len(cmd) != 2 {
-				return "", "", nil, errors.New("bad data command")
+				return "", "", -1, nil, errors.New("bad data command")
 			}
 			parsedAddress, err := strconv.ParseInt(strings.TrimSpace(cmd[0]), 0, 0)
 			if err != nil {
-				return "", "", nil, err
+				return "", "", -1, nil, err
 			}
 			parsedLength, err := strconv.ParseInt(strings.TrimSpace(cmd[1]), 0, 0)
 			if err != nil {
-				return "", "", nil, err
+				return "", "", -1, nil, err
 			}
 			var newBlock DataBlock
 			newBlock.address = int(parsedAddress)
@@ -273,13 +276,23 @@ func parseControlFile(controlfilename string) (string, string, [][]CodePoint, er
 			dataBlocks = append(dataBlocks, newBlock)
 		} else if strings.HasPrefix(l, "save") {
 			parsedSaveFile = strings.TrimSpace(strings.TrimPrefix(l, "save"))
+		} else if strings.HasPrefix(l, "exec") {
+			exec, err := strconv.ParseInt(strings.TrimSpace(strings.TrimPrefix(l, "exec")), 0, 0)
+			if err != nil {
+				return "", "", -1, nil, err
+			}
+			parsedExec = int(exec)
 		}
+	}
+
+	if parsedBase == -1 {
+		return "", "", -1, nil, errors.New("missing base address")
 	}
 
 	fi, err := os.Stat(parsedLoadFile)
 
 	if err != nil {
-		return "", "", nil, errors.New("Error reading input file")
+		return "", "", -1, nil, errors.New("error reading input file")
 	}
 
 	filesize := int(fi.Size())
@@ -298,7 +311,7 @@ func parseControlFile(controlfilename string) (string, string, [][]CodePoint, er
 		//fmt.Printf("Data block at 0x%x, length %d\n", v.address, v.length)
 		fileOffs := v.address - parsedBase // file offset
 		if fileOffs+v.length > filesize {
-			return "", "", nil, fmt.Errorf("block at 0x%x exceeds filesize", v.address)
+			return "", "", -1, nil, fmt.Errorf("block at 0x%x exceeds filesize", v.address)
 		}
 		for i, j := fileOffs, 0; j < v.length; i, j = i+1, j+1 {
 			d[i].bytetype = DATA
@@ -320,7 +333,7 @@ func parseControlFile(controlfilename string) (string, string, [][]CodePoint, er
 		lastByteType = v.bytetype
 	}
 
-	return parsedLoadFile, parsedSaveFile, r, nil
+	return parsedLoadFile, parsedSaveFile, parsedExec, r, nil
 }
 
 type Comment struct {
@@ -497,9 +510,10 @@ func dis(data []byte, baseAddress int, asmType int, writer io.Writer, applyComme
 
 func main() {
 
-	wipeComments := flag.Bool("wipe", false, "Wipe comments")
+	wipeComments := flag.Bool("wipe", false, "Erase all comments")
 	commentColumn := flag.Int("column", 28, "Column number for comments")
 	useConsole := flag.Bool("dry", false, "Dry run (output to stdout rather than the specifed file)")
+	// TODO _ = flag.Bool("beebasm", false, "Write out beebasm compatible source")
 
 	usageFunc := func() {
 		fmt.Println("Usage: disgo <control file>")
@@ -515,7 +529,7 @@ func main() {
 		return
 	}
 
-	sourceFilename, targetFilename, p, err := parseControlFile(flag.Arg(0))
+	sourceFilename, targetFilename, _, p, err := parseControlFile(flag.Arg(0))
 
 	if err != nil {
 		fmt.Println(err)
@@ -549,7 +563,7 @@ func main() {
 	if !*wipeComments {
 		comments, err = saveComments(targetFilename, *commentColumn)
 		if err != nil {
-			fmt.Println("Cannot read comments (missing/new output file?)")
+			fmt.Println("Cannot read comments (new output file?)")
 		} else {
 			fmt.Println("Found", len(comments), "comments in", targetFilename)
 		}
