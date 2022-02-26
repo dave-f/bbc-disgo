@@ -420,11 +420,15 @@ func dis(data []byte, baseAddress int, asmType int, writer io.Writer, applyComme
 
 		if last {
 			outputStr += "???"
-			fmt.Println(outputStr)
 			break
 		}
 
-		outputStr += opstring[name]
+		if asmType == CODE {
+			outputStr += opstring[name]
+		} else {
+			outputStr += fmt.Sprintf("EQUB %02d", data[currentOffset])
+		}
+
 		currentOffset++
 
 		switch mode {
