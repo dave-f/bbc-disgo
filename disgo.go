@@ -412,6 +412,10 @@ func dis(data []byte, baseAddress int, asmType int, writer io.Writer, applyComme
 			name = len(opstring) - 1
 		} else {
 			name = opname[thisByte]
+			if name == I_XXX {
+				mode = IMP
+				bytesRequired = 0
+			}
 		}
 
 		var outputStr = fmt.Sprintf("%02X ", baseAddress+currentOffset)
